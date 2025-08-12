@@ -1,0 +1,33 @@
+{
+  // "files.associations": {
+  //   "mpu6050.h": "c",
+  //   "stdio.h": "c",
+  //   "sd_card.h": "c",
+  //   "ssd1306.h": "c",
+  //   "font.h": "c",
+  //   "button.h": "c",
+  //   "buzzer.h": "c",
+  //   "string.h": "c",
+  //   "tilt_maze.h": "c",
+  //   "paddle_pong.h": "c",
+  //   "menu.h": "c",
+  //   "dodge.h": "c",
+  //   "snake.h": "c",
+  //   "freertos.h": "c",
+  //   "i2c_commons.h": "c",
+  //   "i2c.h": "c",
+  //   "esp_event.h": "c",
+  //   "utils.h": "c"
+  // },
+  "idf.espIdfPath": "/home/francisco/esp/esp-idf/",
+  "idf.toolsPath": "/home/francisco/.espressif",
+  "idf.pythonInstallPath": "/usr/bin/python",
+  "idf.port": "/dev/ttyACM0",
+  "idf.flashType": "UART",
+  "idf.openOcdConfigs": [
+    "board/esp32-wrover-kit-3.3v.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32"
+  }
+}
