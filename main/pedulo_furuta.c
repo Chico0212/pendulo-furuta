@@ -3,10 +3,10 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 
-const int A1_PIN = GPIO_NUM_12;
-const int B1_PIN = GPIO_NUM_13;
-const int A2_PIN = GPIO_NUM_14;
-const int B2_PIN = GPIO_NUM_15;
+const int A1_PIN = GPIO_NUM_19;
+const int B1_PIN = GPIO_NUM_21;
+const int A2_PIN = GPIO_NUM_22;
+const int B2_PIN = GPIO_NUM_23;
 
 const int PWM_PIN_1 = GPIO_NUM_26;
 const int PWM_PIN_2 = GPIO_NUM_27;
@@ -17,11 +17,11 @@ const long int bit_mask = (1ULL << A1_PIN) | (1ULL << B1_PIN) |
 const char *MAIN = "MAIN";
 
 #define LEDC_TIMER LEDC_TIMER_0
-#define LEDC_MODE LEDC_LOW_SPEED_MODE
+#define LEDC_MODE LEDC_HIGH_SPEED_MODE
 #define LEDC_CHANNEL_1 LEDC_CHANNEL_0
 #define LEDC_CHANNEL_2 LEDC_CHANNEL_1
 #define LEDC_DUTY_RES LEDC_TIMER_8_BIT
-#define LEDC_FREQUENCY 60
+#define LEDC_FREQUENCY 36000
 
 void ledc_setup();
 void clock_wise_spin();
@@ -47,16 +47,23 @@ void app_main(void)
 
     ledc_setup();
 
-    ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_1, 128); 
+    ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_1, 255); 
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_1);
 
-    ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_2, 128); 
+    ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_2, 255); 
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_2);
 
-    while (1)
+    gpio_set_level(A1_PIN, LOW);
+    gpio_set_level(B1_PIN, LOW);
+    gpio_set_level(A2_PIN, LOW);
+    gpio_set_level(B2_PIN, LOW);
+    
+    for (int i = 0; i < 50; i++)
     {
         clock_wise_spin();
+        ESP_LOGI(MAIN, "Step: %d", i+1);
     }
+    // clock_wise_spin();
 }
 
 void ledc_setup()
@@ -96,17 +103,31 @@ void ledc_setup()
     ledc_channel_config(&ledc_channel_2);
 }
 
-void clock_wise_spin()
-{
+void clock_wise_spin() {
+    // Passo 1: A+ B+
     gpio_set_level(A1_PIN, HIGH);
     gpio_set_level(B1_PIN, LOW);
     gpio_set_level(A2_PIN, HIGH);
     gpio_set_level(B2_PIN, LOW);
-    vTaskDelay(pdMS_TO_TICKS(17)); // 60 Hz -> ~16,67 ms
-
-    // Passo 2
+    vTaskDelay(pdMS_TO_TICKS(17));
+    
+    // Passo 2: A- B+
     gpio_set_level(A1_PIN, LOW);
     gpio_set_level(B1_PIN, HIGH);
+    gpio_set_level(A2_PIN, HIGH);
+    gpio_set_level(B2_PIN, LOW);
+    vTaskDelay(pdMS_TO_TICKS(17));
+    
+    // Passo 3: A- B-
+    gpio_set_level(A1_PIN, LOW);
+    gpio_set_level(B1_PIN, HIGH);
+    gpio_set_level(A2_PIN, LOW);
+    gpio_set_level(B2_PIN, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(17));
+    
+    // Passo 4: A+ B-
+    gpio_set_level(A1_PIN, HIGH);
+    gpio_set_level(B1_PIN, LOW);
     gpio_set_level(A2_PIN, LOW);
     gpio_set_level(B2_PIN, HIGH);
     vTaskDelay(pdMS_TO_TICKS(17));
