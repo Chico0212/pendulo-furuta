@@ -49,10 +49,11 @@ esp_err_t encoder_init(void) {
     current_speed_rpm = 0.0f;
     last_pulse_time_us = esp_timer_get_time();
     
-    ESP_LOGI(TAG, "Encoder initialized successfully");
+    ESP_LOGI(TAG, "Pendulum encoder initialized successfully");
     ESP_LOGI(TAG, "Channel A: GPIO %d, Channel B: GPIO %d", ENCODER_CHANNEL_A_PIN, ENCODER_CHANNEL_B_PIN);
     ESP_LOGI(TAG, "Resolution: %d PPR, %d counts per revolution", ENCODER_PPR, ENCODER_COUNTS_PER_REV);
     ESP_LOGI(TAG, "Initial Channel A: %d, Channel B: %d", last_channel_a, last_channel_b);
+    ESP_LOGI(TAG, "Measuring pendulum angle: 0° = hanging down, 180° = upright");
     
     return ESP_OK;
 }
@@ -262,8 +263,24 @@ int64_t encoder_radians_to_position(float radians) {
     return (int64_t)(radians * ENCODER_COUNTS_PER_REV / (2.0f * M_PI));
 }
 
-void encoder_debug_pins(void) {
-    uint8_t pin_a = gpio_get_level(ENCODER_CHANNEL_A_PIN);
-    uint8_t pin_b = gpio_get_level(ENCODER_CHANNEL_B_PIN);
-    ESP_LOGI(TAG, "Debug: Channel A=%d, Channel B=%d, Position=%lld", pin_a, pin_b, encoder_position);
+float encoder_get_pendulum_angle_degrees(void) {
+    int64_t position = encoder_get_position();
+    float angle = encoder_position_to_degrees(position);
+    
+    // Normalize to 0-360° range
+    while (angle < 0) angle += 360.0f;
+    while (angle >= 360.0f) angle -= 360.0f;
+    
+    return angle;
+}
+
+float encoder_get_pendulum_angle_radians(void) {
+    int64_t position = encoder_get_position();
+    float angle = encoder_position_to_radians(position);
+    
+    // Normalize to 0-2π range
+    while (angle < 0) angle += 2.0f * M_PI;
+    while (angle >= 2.0f * M_PI) angle -= 2.0f * M_PI;
+    
+    return angle;
 }

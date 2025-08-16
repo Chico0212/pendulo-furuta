@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+// Pendulum encoder pins
 #define ENCODER_CHANNEL_A_PIN GPIO_NUM_32
 #define ENCODER_CHANNEL_B_PIN GPIO_NUM_33
 
@@ -45,6 +46,7 @@ encoder_direction_t encoder_get_direction(void);
 
 encoder_data_t encoder_get_data(void);
 
+// Convert pendulum encoder position to angles
 float encoder_position_to_degrees(int64_t position);
 
 float encoder_position_to_radians(int64_t position);
@@ -53,7 +55,11 @@ int64_t encoder_degrees_to_position(float degrees);
 
 int64_t encoder_radians_to_position(float radians);
 
-void encoder_debug_pins(void);
+// Get pendulum angle in degrees (0° = hanging down, 180° = upright)
+float encoder_get_pendulum_angle_degrees(void);
+
+// Get pendulum angle in radians (0 = hanging down, π = upright)
+float encoder_get_pendulum_angle_radians(void);
 
 #ifdef __cplusplus
 }

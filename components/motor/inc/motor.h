@@ -5,6 +5,8 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include <math.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,11 +51,24 @@ void motor_step_counter_clockwise(void);
 
 void motor_stop(void);
 
+// Open-loop velocity control (no encoder feedback)
+void motor_set_velocity_control(float velocity_dps);
+
+// Open-loop angle control (time-based, no encoder feedback)
+void motor_move_to_angle(float target_angle_deg);
+
+// Set continuous rotation velocity (for arm control)
+void motor_set_arm_velocity(float velocity_dps);
+
+bool motor_is_moving(void);
+
 int motor_get_current_delay(void);
 
 int motor_get_current_duty(void);
 
 float motor_calculate_rpm_from_delay(int delay_ms);
+
+void motor_emergency_stop(void);
 
 #ifdef __cplusplus
 }

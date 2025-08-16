@@ -1,3 +1,3 @@
 idf_component_register(SRCS "pedulo_furuta.c"
                     INCLUDE_DIRS "."
-                    REQUIRES motor encoder)
+                    REQUIRES motor encoder hw040_encoder control physics sensors)

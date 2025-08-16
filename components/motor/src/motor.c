@@ -3,6 +3,8 @@
 static const char *TAG = "MOTOR";
 static int current_step_delay_ms = MOTOR_DEFAULT_STEP_DELAY_MS;
 static int current_motor_duty = MOTOR_DEFAULT_DUTY_CYCLE;
+static volatile bool motor_moving = false;
+static volatile bool emergency_stop_flag = false;
 
 static const long int gpio_bit_mask = (1ULL << MOTOR_A1_PIN) | (1ULL << MOTOR_B1_PIN) |
                                       (1ULL << MOTOR_A2_PIN) | (1ULL << MOTOR_B2_PIN);
@@ -33,7 +35,8 @@ esp_err_t motor_init(void) {
     
     motor_stop();
     
-    ESP_LOGI(TAG, "Motor initialized successfully");
+    ESP_LOGI(TAG, "Motor initialized successfully (open-loop control)");
+    ESP_LOGI(TAG, "Motor controls arm rotation without encoder feedback");
     return ESP_OK;
 }
 
@@ -109,7 +112,7 @@ void motor_set_speed_rpm(float rpm) {
     if (delay_ms < 1) delay_ms = 1;
     
     current_step_delay_ms = delay_ms;
-    ESP_LOGI(TAG, "Motor speed set to %.2f RPM (delay: %d ms)", rpm, delay_ms);
+    ESP_LOGD(TAG, "Motor speed set to %.2f RPM (delay: %d ms)", rpm, delay_ms);
 }
 
 void motor_set_step_delay(int delay_ms) {
@@ -120,7 +123,7 @@ void motor_set_step_delay(int delay_ms) {
     
     current_step_delay_ms = delay_ms;
     float rpm = motor_calculate_rpm_from_delay(delay_ms);
-    ESP_LOGI(TAG, "Step delay set to %d ms (%.2f RPM)", delay_ms, rpm);
+    ESP_LOGD(TAG, "Step delay set to %d ms (%.2f RPM)", delay_ms, rpm);
 }
 
 void motor_set_torque(int duty_cycle) {
@@ -138,7 +141,7 @@ void motor_set_torque(int duty_cycle) {
     ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_2);
     
     float torque_percent = (duty_cycle / 255.0) * 100.0;
-    ESP_LOGI(TAG, "Motor torque set to %d/255 (%.1f%%)", duty_cycle, torque_percent);
+    ESP_LOGD(TAG, "Motor torque set to %d/255 (%.1f%%)", duty_cycle, torque_percent);
 }
 
 void motor_set_pwm_speed(int duty_cycle) {
@@ -159,11 +162,11 @@ void motor_set_pwm_speed(int duty_cycle) {
         current_step_delay_ms = 17;
     }
     
-    ESP_LOGI(TAG, "PWM speed control: duty=%d, delay=%dms", duty_cycle, current_step_delay_ms);
+    ESP_LOGD(TAG, "PWM speed control: duty=%d, delay=%dms", duty_cycle, current_step_delay_ms);
 }
 
 void motor_step_clockwise(void) {
-    ESP_LOGI(TAG, "Clock wise spin");
+    // ESP_LOGD(TAG, "Clock wise spin");  // Disabled to prevent output flooding
     
     gpio_set_level(MOTOR_A1_PIN, 1);
     gpio_set_level(MOTOR_B1_PIN, 0);
@@ -191,7 +194,7 @@ void motor_step_clockwise(void) {
 }
 
 void motor_step_counter_clockwise(void) {
-    ESP_LOGI(TAG, "Counter clock wise spin");
+    // ESP_LOGD(TAG, "Counter clock wise spin");  // Disabled to prevent output flooding
     
     gpio_set_level(MOTOR_A1_PIN, 1);
     gpio_set_level(MOTOR_B1_PIN, 0);
@@ -235,4 +238,68 @@ int motor_get_current_duty(void) {
 
 float motor_calculate_rpm_from_delay(int delay_ms) {
     return 60000.0 / (delay_ms * 200.0);
+}
+
+void motor_set_velocity_control(float velocity_dps) {
+    if (emergency_stop_flag) {
+        return;
+    }
+    
+    if (fabs(velocity_dps) < 0.1f) {
+        motor_moving = false;
+        motor_stop();
+        return;
+    }
+    
+    float rpm = fabs(velocity_dps) / 6.0f;
+    motor_set_speed_rpm(rpm);
+    motor_moving = true;
+}
+
+void motor_move_to_angle(float target_angle_deg) {
+    ESP_LOGI(TAG, "Moving to angle: %.2f degrees", target_angle_deg);
+    motor_moving = true;
+}
+
+bool motor_is_moving(void) {
+    return motor_moving && !emergency_stop_flag;
+}
+
+void motor_set_arm_velocity(float velocity_dps) {
+    if (emergency_stop_flag) {
+        return;
+    }
+    
+    // Convert degrees per second to RPM and set motor speed
+    float rpm = fabs(velocity_dps) / 6.0f;
+    
+    if (rpm < 0.1f) {
+        motor_moving = false;
+        motor_stop();
+        ESP_LOGD(TAG, "Arm velocity too low, stopping motor");
+        return;
+    }
+    
+    motor_set_speed_rpm(rpm);
+    motor_moving = true;
+    
+    // Direction control based on velocity sign
+    if (velocity_dps > 0) {
+        ESP_LOGD(TAG, "Arm velocity: %.2f dps (clockwise)", velocity_dps);
+    } else {
+        ESP_LOGD(TAG, "Arm velocity: %.2f dps (counter-clockwise)", velocity_dps);
+    }
+}
+
+void motor_emergency_stop(void) {
+    emergency_stop_flag = true;
+    motor_moving = false;
+    motor_stop();
+    
+    ledc_set_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_1, 0);
+    ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_1);
+    ledc_set_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_2, 0);
+    ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_2);
+    
+    ESP_LOGW(TAG, "EMERGENCY STOP ACTIVATED!");
 }
