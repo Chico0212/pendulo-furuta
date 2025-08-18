@@ -5,12 +5,15 @@ static int current_step_delay_ms = MOTOR_DEFAULT_STEP_DELAY_MS;
 static int current_motor_duty = MOTOR_DEFAULT_DUTY_CYCLE;
 static volatile bool motor_moving = false;
 static volatile bool emergency_stop_flag = false;
+static volatile float target_velocity_dps = 0.0;
+static TaskHandle_t motor_task_handle = NULL;
 
 static const long int gpio_bit_mask = (1ULL << MOTOR_A1_PIN) | (1ULL << MOTOR_B1_PIN) |
                                       (1ULL << MOTOR_A2_PIN) | (1ULL << MOTOR_B2_PIN);
 
 static esp_err_t motor_setup_ledc(void);
 static esp_err_t motor_setup_gpio(void);
+static void motor_control_task(void *pvParameters);
 
 esp_err_t motor_init(void) {
     esp_err_t ret;
@@ -34,6 +37,8 @@ esp_err_t motor_init(void) {
     ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_2);
     
     motor_stop();
+    
+    xTaskCreate(motor_control_task, "motor_control", 4096, NULL, 3, &motor_task_handle);
     
     ESP_LOGI(TAG, "Motor initialized successfully (open-loop control)");
     ESP_LOGI(TAG, "Motor controls arm rotation without encoder feedback");
@@ -196,24 +201,29 @@ void motor_step_clockwise(void) {
 void motor_step_counter_clockwise(void) {
     // ESP_LOGD(TAG, "Counter clock wise spin");  // Disabled to prevent output flooding
     
+    // Clockwise sequence reversed for counter-clockwise
+    // Step 4 of clockwise becomes step 1 of counter-clockwise
     gpio_set_level(MOTOR_A1_PIN, 1);
     gpio_set_level(MOTOR_B1_PIN, 0);
     gpio_set_level(MOTOR_A2_PIN, 0);
     gpio_set_level(MOTOR_B2_PIN, 1);
     vTaskDelay(pdMS_TO_TICKS(current_step_delay_ms));
     
+    // Step 3 of clockwise becomes step 2 of counter-clockwise  
     gpio_set_level(MOTOR_A1_PIN, 0);
     gpio_set_level(MOTOR_B1_PIN, 1);
     gpio_set_level(MOTOR_A2_PIN, 0);
     gpio_set_level(MOTOR_B2_PIN, 1);
     vTaskDelay(pdMS_TO_TICKS(current_step_delay_ms));
     
+    // Step 2 of clockwise becomes step 3 of counter-clockwise
     gpio_set_level(MOTOR_A1_PIN, 0);
     gpio_set_level(MOTOR_B1_PIN, 1);
     gpio_set_level(MOTOR_A2_PIN, 1);
     gpio_set_level(MOTOR_B2_PIN, 0);
     vTaskDelay(pdMS_TO_TICKS(current_step_delay_ms));
     
+    // Step 1 of clockwise becomes step 4 of counter-clockwise
     gpio_set_level(MOTOR_A1_PIN, 1);
     gpio_set_level(MOTOR_B1_PIN, 0);
     gpio_set_level(MOTOR_A2_PIN, 1);
@@ -270,16 +280,16 @@ void motor_set_arm_velocity(float velocity_dps) {
         return;
     }
     
-    // Convert degrees per second to RPM and set motor speed
-    float rpm = fabs(velocity_dps) / 6.0f;
+    target_velocity_dps = velocity_dps;
     
-    if (rpm < 0.1f) {
+    if (fabs(velocity_dps) < 0.1f) {
         motor_moving = false;
-        motor_stop();
         ESP_LOGD(TAG, "Arm velocity too low, stopping motor");
         return;
     }
     
+    // Convert degrees per second to RPM and set motor speed
+    float rpm = fabs(velocity_dps) / 6.0f;
     motor_set_speed_rpm(rpm);
     motor_moving = true;
     
@@ -302,4 +312,27 @@ void motor_emergency_stop(void) {
     ledc_update_duty(MOTOR_LEDC_MODE, MOTOR_LEDC_CHANNEL_2);
     
     ESP_LOGW(TAG, "EMERGENCY STOP ACTIVATED!");
+}
+
+static void motor_control_task(void *pvParameters) {
+    while (1) {
+        if (emergency_stop_flag || !motor_moving) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+        
+        if (fabs(target_velocity_dps) < 0.1f) {
+            motor_moving = false;
+            motor_stop();
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+        
+        // Execute steps based on direction
+        if (target_velocity_dps > 0) {
+            motor_step_clockwise();
+        } else {
+            motor_step_counter_clockwise();
+        }
+    }
 }
