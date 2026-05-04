@@ -12,9 +12,9 @@
 #define SWING_UP_THRESHOLD_DEG 30.0
 #define BALANCE_THRESHOLD_DEG 15.0
 
-#define KP_BALANCE 150.0
-#define KD_BALANCE 10.0
-#define KP_SWING_UP 50.0
+#define KP_BALANCE 12
+#define KD_BALANCE 0.43
+#define KP_SWING_UP 5
 
 typedef enum {
     FURUTA_STATE_IDLE,
